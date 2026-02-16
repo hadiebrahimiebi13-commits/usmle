@@ -1,1 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USMLE Step 1 QBank</title>
+    <style>
+        :root {
+            /* Palette - Inspired by UWorld Dark Mode */
+            --bg-app: #121212;
+            --bg-panel: #1e1e1e;
+            --bg-element: #2d2d2d;
+            --border: #3e3e3e;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent: #2196f3; /* Blue */
+            --accent-hover: #1976d2;
+            --correct: #4caf50; /* Green */
+            --correct-bg: rgba(76, 175, 80, 0.15);
+            --wrong: #f44336; /* Red */
+            --wrong-bg: rgba(244, 67, 54, 0.15);
+            --strike: #757575;
+            
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "Courier New", Courier, monospace;
+        }
 
+        * { box-sizing: border-box; outline: none; }
+        
+        body {
+            margin: 0;
+            font-family: var(--font-main);
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- Header --- */
+        header {
+            height: 50px;
+            background-color: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1rem;
+            flex-shrink: 0;
+        }
+        
+        .brand {
+            font-weight: 700;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .badge {
+            background: #333;
+            color: #fff;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #555;
+        }
+
+        .timer {
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* --- Main Content --- */
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Loading Overlay */
+        #loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: var(--bg-app);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Split View */
+        .split-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .panel-left {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid var(--border);
+            line-height: 1.6;
+            font-size: 1.05rem;
+        }
+
+        .panel-right {
+            flex: 0 0 450px; /* Fixed width for options on desktop */
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-panel);
+            border-left: 1px solid var(--border);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 900px) {
+            .split-container { flex-direction: column; }
+            .panel-left { flex: 1; border-right: none; border-bottom: 1px solid var(--border); }
+            .panel-right { flex: 1; border-left: none; width: 100%; }
+        }
+
+        /* Question Text */
+        .question-text {
+            white-space: pre-wrap;
+            color: #ececec;
+        }
+
+        /* Options Area */
+        .options-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .option-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            background: var(--bg-element);
+        }
+
+        .option-row:hover:not(.disabled) {
+            background: #383838;
+            border-color: #666;
+        }
+
+        .option-row.selected {
+            background: rgba(33, 150, 243, 0.15);
+            border-color: var(--accent);
+        }
+
+        .option-key {
+            font-weight: bold;
+            color: var(--text-secondary);
+            min-width: 20px;
+        }
+        .option-content {
+            flex: 1;
+        }
+
+        /* Answer States */
+        .option-row.correct {
+            background: var(--correct-bg) !important;
+            border-color: var(--correct) !important;
+        }
+        .option-row.wrong {
+            background: var(--wrong-bg) !important;
+            border-color: var(--wrong) !important;
+        }
+        .option-row.disabled {
+            cursor: default;
+        }
+
+        /* Explanation */
+        .explanation-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #232323;
+            border-left: 3px solid var(--accent);
+            border-radius: 4px;
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+        .explanation-header {
+            font-weight: bold;
+            color: var(--accent);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        .explanation-text {
+            font-size: 0.95rem;
+            color: #d1d1d1;
+            line-height: 1.5;
+        }
+
+        /* Footer Actions */
+        .action-bar {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-app);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background: var(--bg-element);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #3e3e3e;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        button.primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        /* Strike-through feature (optional visual aid) */
+        .striked {
+            text-decoration: line-through;
+            color: var(--strike);
+            opacity: 0.7;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="brand">
+            <span>USMLE QBank</span>
+            <span class="badge">STEP 1</span>
+        </div>
+        <div class="timer" id="status-text">Initializing...</div>
+    </header>
+
+    <!-- Main -->
+    <main>
+        <!-- Loader -->
+        <div id="loading-overlay">
+            <div class="spinner"></div>
+            <div id="loading-msg">Fetching US_qbank.jsonl from repository...</div>
+        </div>
+
+        <!-- Content Split -->
+        <div class="split-container" id="app-content" style="visibility: hidden;">
+            <!-- Left: Stem -->
+            <div class="panel-left">
+                <div id="question-text" class="question-text"></div>
+            </div>
+
+            <!-- Right: Options & Controls -->
+            <div class="panel-right">
+                <div class="options-scroll">
+                    <div id="options-list"></div>
+                    
+                    <div id="explanation-box" class="explanation-box">
+                        <div class="explanation-header">Explanation / Rationale</div>
+                        <div id="explanation-content" class="explanation-text"></div>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <button id="btn-prev" disabled>&lt; Prev</button>
+                    
+                    <div class="nav-group">
+                        <button id="btn-reveal">Show Answer</button>
+                        <button id="btn-submit" class="primary" disabled>Submit</button>
+                    </div>
+                    
+                    <button id="btn-next" disabled>Next &gt;</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /**
+         * CONFIGURATION
+         * Primary: Relative path (best for GitHub Pages same repo)
+         * Backup: Raw GitHub URL (fallback for local testing or cross-origin)
+         */
+        const CONFIG = {
+            primaryUrl: './US_qbank.jsonl',
+            backupUrl: 'https://raw.githubusercontent.com/hadiebrahimiebi13-commits/usmle/main/US_qbank.jsonl'
+        };
+
+        // --- App State ---
+        const state = {
+            questions: [],
+            currentIndex: 0,
+            userAnswers: {}, // index -> key (e.g., 0: "A")
+            revealed: {},    // index -> boolean
+            loading: true
+        };
+
+        // --- DOM Elements ---
+        const els = {
+            loader: document.getElementById('loading-overlay'),
+            loadMsg: document.getElementById('loading-msg'),
+            content: document.getElementById('app-content'),
+            qText: document.getElementById('question-text'),
+            optList: document.getElementById('options-list'),
+            status: document.getElementById('status-text'),
+            expBox: document.getElementById('explanation-box'),
+            expContent: document.getElementById('explanation-content'),
+            btnPrev: document.getElementById('btn-prev'),
+            btnNext: document.getElementById('btn-next'),
+            btnSubmit: document.getElementById('btn-submit'),
+            btnReveal: document.getElementById('btn-reveal')
+        };
+
+        // --- Initialization ---
+        async function init() {
+            try {
+                let textData = '';
+                
+                // 1. Try Primary URL (Relative)
+                try {
+                    const res = await fetch(CONFIG.primaryUrl);
+                    if (res.ok) {
+                        textData = await res.text();
+                    } else {
+                        throw new Error('Relative fetch failed');
+                    }
+                } catch (e) {
+                    // 2. Try Backup URL (Raw GitHub)
+                    console.log("Primary fetch failed, trying backup...");
+                    els.loadMsg.textContent = "Trying backup source...";
+                    const res = await fetch(CONFIG.backupUrl);
+                    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+                    textData = await res.text();
+                }
+
+                // Parse Data
+                parseData(textData);
+
+            } catch (err) {
+                console.error(err);
+                els.loader.innerHTML = `
+                    <div style="color: #f44336; text-align: center;">
+                        <h3>Error Loading Data</h3>
+                        <p>Could not load US_qbank.jsonl.</p>
+                        <p style="font-size:0.8rem; color:#999">${err.message}</p>
+                        <br>
+                        <p style="font-size:0.9rem">Make sure index.html is in the same folder as the .jsonl file.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function parseData(rawText) {
+            const lines = rawText.split(/\n/);
+            const parsed = [];
+
+            lines.forEach((line, i) => {
+                if (!line.trim()) return;
+                try {
+                    const q = JSON.parse(line);
+                    // FILTER: Only keep Step 1 questions
+                    if (q.meta_info && q.meta_info.toString().toLowerCase().includes('step1')) {
+                        parsed.push(q);
+                    }
+                } catch (e) {
+                    console.warn(`Skipping invalid JSON at line ${i+1}`);
+                }
+            });
+
+            if (parsed.length === 0) {
+                els.loadMsg.textContent = "No questions found with meta_info: 'step1'.";
+                return;
+            }
+
+            state.questions = parsed;
+            state.loading = false;
+            els.loader.style.display = 'none';
+            els.content.style.visibility = 'visible';
+            
+            loadQuestion(0);
+        }
+
+        // --- Core Logic ---
+        function loadQuestion(index) {
+            state.currentIndex = index;
+            const q = state.questions[index];
+            const isAnswered = state.userAnswers.hasOwnProperty(index);
+            const isRevealed = state.revealed[index] || isAnswered;
+
+            // Update Header
+            els.status.textContent = `Question ${index + 1} of ${state.questions.length}`;
+
+            // Render Stem
+            els.qText.textContent = q.question;
+
+            // Render Options
+            els.optList.innerHTML = '';
+            
+            // Normalize options (support both Array and Object formats)
+            let options = [];
+            if (Array.isArray(q.options)) {
+                // If ["Answer A", "Answer B"] -> map to A, B
+                const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                options = q.options.map((val, i) => [letters[i], val]);
+            } else if (typeof q.options === 'object') {
+                // If {"A": "val", "B": "val"}
+                options = Object.entries(q.options).sort((a,b) => a[0].localeCompare(b[0]));
+            }
+
+            options.forEach(([key, val]) => {
+                const row = document.createElement('div');
+                row.className = 'option-row';
+                row.dataset.key = key;
+
+                // Inner HTML
+                row.innerHTML = `
+                    <div class="option-key">${key}</div>
+                    <div class="option-content">${val}</div>
+                `;
+
+                // Event Listener
+                row.onclick = (e) => handleOptionClick(key, e.shiftKey); // Shift+Click to strike
+                els.optList.appendChild(row);
+            });
+
+            // UI State update
+            if (isRevealed) {
+                applyResultUI(q.answer, state.userAnswers[index]);
+            } else {
+                els.expBox.style.display = 'none';
+                els.btnSubmit.textContent = "Submit";
+                els.btnSubmit.disabled = true; // wait for selection
+                els.btnReveal.disabled = false;
+                
+                // Select previously selected temp option if any? No, we reset selection on new question nav unless submitted
+            }
+
+            updateNavButtons();
+        }
+
+        function handleOptionClick(key, isStrikeAction) {
+            const index = state.currentIndex;
+            // If already submitted/revealed, do nothing
+            if (state.userAnswers[index] || state.revealed[index]) return;
+
+            const rows = document.querySelectorAll('.option-row');
+            
+            if (isStrikeAction) {
+                // Strikethrough logic (Shift + Click)
+                const target = document.querySelector(`.option-row[data-key="${key}"]`);
+                if(target) target.classList.toggle('striked');
+                return;
+            }
+
+            // Normal Selection
+            rows.forEach(r => {
+                r.classList.remove('selected');
+                if (r.dataset.key === key) r.classList.add('selected');
+            });
+
+            // Enable submit
+            els.btnSubmit.disabled = false;
+        }
+
+        function submitAnswer() {
+            const index = state.currentIndex;
+            if (state.userAnswers[index] || state.revealed[index]) return;
+
+            // Find selected
+            const selectedRow = document.querySelector('.option-row.selected');
+            if (!selectedRow) return;
+
+            const key = selectedRow.dataset.key;
+            state.userAnswers[index] = key; // Record answer
+            
+            applyResultUI(state.questions[index].answer, key);
+        }
+
+        function revealAnswer() {
+            const index = state.currentIndex;
+            if (state.revealed[index] || state.userAnswers[index]) return;
+
+            state.revealed[index] = true;
+            // Mark as revealed without a user answer
+            applyResultUI(state.questions[index].answer, null);
+        }
+
+        function applyResultUI(correctKey, userKey) {
+            const rows = document.querySelectorAll('.option-row');
+            
+            rows.forEach(row => {
+                const key = row.dataset.key;
+                row.classList.remove('selected');
+                row.classList.add('disabled');
+
+                if (key === correctKey) {
+                    row.classList.add('correct');
+                } else if (key === userKey && key !== correctKey) {
+                    row.classList.add('wrong');
+                }
+            });
+
+            // Show Explanation
+            const q = state.questions[state.currentIndex];
+            els.expContent.textContent = q.explanation || q.rationale || "No explanation available.";
+            els.expBox.style.display = 'block';
+
+            // Update Buttons
+            els.btnSubmit.disabled = true;
+            els.btnSubmit.textContent = userKey === correctKey ? "Correct" : (userKey ? "Incorrect" : "Revealed");
+            els.btnReveal.disabled = true;
+        }
+
+        function updateNavButtons() {
+            els.btnPrev.disabled = state.currentIndex === 0;
+            els.btnNext.disabled = state.currentIndex === state.questions.length - 1;
+        }
+
+        // --- Event Listeners ---
+        els.btnPrev.onclick = () => loadQuestion(state.currentIndex - 1);
+        els.btnNext.onclick = () => loadQuestion(state.currentIndex + 1);
+        els.btnSubmit.onclick = submitAnswer;
+        els.btnReveal.onclick = revealAnswer;
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (state.loading) return;
+            
+            const key = e.key;
+            const index = state.currentIndex;
+            const isLocked = state.userAnswers[index] || state.revealed[index];
+
+            if (key === 'Enter') {
+                if (!isLocked && !els.btnSubmit.disabled) submitAnswer();
+            } 
+            else if (key === 'ArrowRight') {
+                if (!els.btnNext.disabled) els.btnNext.click();
+            }
+            else if (key === 'ArrowLeft') {
+                if (!els.btnPrev.disabled) els.btnPrev.click();
+            }
+            else if (key === ' ' && !isLocked) { // Spacebar to reveal
+                revealAnswer();
+            }
+            // Number keys 1-9 to select options
+            else if (!isLocked && key >= '1' && key <= '9') {
+                const rows = document.querySelectorAll('.option-row');
+                const idx = parseInt(key) - 1;
+                if (rows[idx]) {
+                    handleOptionClick(rows[idx].dataset.key, false);
+                }
+            }
+        });
+
+        // Run
+        init();
+
+    </script>
+</body>
+</html>
